@@ -1,0 +1,30 @@
+{
+  "name": "marinefin",
+  "private": true,
+  "version": "1.1.0",
+  "type": "module",
+  "packageManager": "bun@1.4.2",
+  "engines": {
+    "bun": ">=1.2.0"
+  },
+  "description": "A fully featured static Jellyfin client that builds to a single HTML file.",
+  "scripts": {
+    "dev": "bunx --bun vite",
+    "build": "bunx --bun vite build && bun scripts/assert-singlefile.ts",
+    "preview": "bunx --bun vite preview",
+    "check": "tsc --noEmit --pretty",
+    "start": "bun run build && bun run preview --host"
+  },
+  "dependencies": {
+    "@fontsource-variable/fraunces": "^5.3.0",
+    "@fontsource-variable/outfit": "^5.3.0",
+    "hls.js": "^1.7.3"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^7.3.0",
+    "svelte": "^5.57.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.0",
+    "vite-plugin-singlefile": "^2.3.3"
+  }
+}
