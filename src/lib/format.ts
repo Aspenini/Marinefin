@@ -117,6 +117,14 @@ export function normalizeServer(input: string): string {
   return url.replace(/\/+$/, '');
 }
 
+/** Addresses to try for user input: as-is if it has a scheme, otherwise https first, then http. */
+export function serverCandidates(input: string): string[] {
+  const url = input.trim();
+  if (!url) return [];
+  if (/^https?:\/\//i.test(url)) return [normalizeServer(url)];
+  return [normalizeServer(`https://${url}`), normalizeServer(`http://${url}`)];
+}
+
 export function isPlayable(item: { Type?: string; MediaType?: string; IsFolder?: boolean }): boolean {
   const t = item.Type;
   if (t === 'Movie' || t === 'Episode' || t === 'Video' || t === 'MusicVideo' || t === 'Trailer' || t === 'TvChannel') {
