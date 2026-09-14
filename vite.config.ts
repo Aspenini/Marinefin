@@ -13,7 +13,6 @@ export default defineConfig({
   base: './',
   build: {
     target: 'es2023',
-    minify: 'esbuild',
     sourcemap: false,
     reportCompressedSize: false,
   },
