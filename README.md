@@ -26,7 +26,7 @@ bun install
 bun run dev
 ```
 
-Open the printed local URL (not `file://`). Jellyfin blocks browsers that load the client as a raw file.
+Open the printed local URL.
 
 ## Single-file build
 
@@ -40,6 +40,8 @@ The entire client — JS, CSS, and fonts — lands at `dist/index.html`. Host th
 - Drop it on GitHub Pages, Cloudflare Pages, Nginx, Caddy, or a NAS share
 
 Browsers block HTTPS pages from talking to `http://` servers, so when Marinefin is hosted over HTTPS (GitHub Pages included) your Jellyfin server needs an `https://` address too.
+
+Copies hosted over HTTPS show a **Download** link on the sign-in screen and in Settings. Visitors can save the single file and open it straight from disk, which also lets it reach `http://` servers on their network.
 - Serve it from the Jellyfin server itself
 
 Then open it over HTTP(S), enter your server URL, and sign in.

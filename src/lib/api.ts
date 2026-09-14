@@ -53,11 +53,8 @@ const CONNECT_TIMEOUT_MS = 5000;
 
 function networkErrorMessage(err: unknown, server: string): string {
   if ((err as Error)?.name === 'TimeoutError') return 'The server took too long to respond.';
-  if (location.protocol === 'file:') {
-    return 'Could not reach the server. Serve Marinefin over HTTP(S) — not as a local file.';
-  }
   if (location.protocol === 'https:' && /^http:\/\//i.test(server)) {
-    return 'This page is served over HTTPS, so the browser blocks http:// servers. Use an https:// address for your server.';
+    return 'This page is served over HTTPS, so the browser blocks http:// servers. Use an https:// address, or download Marinefin below and open it locally.';
   }
   return 'Could not reach the server. Check the address, and that the server allows requests from this site (CORS).';
 }

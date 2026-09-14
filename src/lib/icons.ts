@@ -36,4 +36,5 @@ export const icons: Record<string, string> = {
   plus: '<path d="M12 5v14M5 12h14"/>',
   sliders: '<path d="M4 7h16M4 17h16M8 4v6M16 14v6"/>',
   mark: '<circle cx="12" cy="12" r="8"/><path d="M8 12l3 3 5-6"/>',
+  download: '<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>',
 };

@@ -9,6 +9,7 @@
   } from '../lib/playback';
   import { APP, type AudioChannelPref, type PlayMethodPref, type SubtitleMode, type VideoCodecPref } from '../lib/types';
   import { router } from '../lib/router.svelte';
+  import { canDownloadSelf, SELF_FILENAME, selfUrl } from '../lib/selfDownload';
   import { session } from '../lib/session.svelte';
 
   const accents = ['#3ee0c5', '#79c8ff', '#f0a36b', '#e07ad6', '#f5c16c', '#8b9dff'];
@@ -313,6 +314,15 @@
       {APP.name} {APP.version} is a static Jellyfin client. Build it once, host the single HTML file anywhere,
       and stream from your own server.
     </p>
+    {#if canDownloadSelf}
+      <div class="card dl">
+        <p class="muted">
+          Save {APP.name} as a single HTML file that opens straight from your computer. A local copy can also reach
+          <code>http://</code> servers on your network.
+        </p>
+        <a class="btn ghost" href={selfUrl} download={SELF_FILENAME}>Download</a>
+      </div>
+    {/if}
     <ul>
       <li>Space / K — play / pause</li>
       <li>← → — seek 10 seconds · ↑ ↓ — volume</li>
@@ -336,6 +346,8 @@
     border-radius: 16px;
     background: var(--bg-card);
   }
+  .dl { margin: 12px 0; }
+  .dl p { margin: 0; }
   .swatches { display: flex; gap: 10px; margin-top: 10px; }
   .sw {
     width: 28px;

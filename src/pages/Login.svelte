@@ -1,6 +1,7 @@
 <script lang="ts">
   import { api } from '../lib/api';
   import { normalizeServer, serverCandidates } from '../lib/format';
+  import { canDownloadSelf, SELF_FILENAME, selfUrl } from '../lib/selfDownload';
   import { router } from '../lib/router.svelte';
   import { session } from '../lib/session.svelte';
   import type { PublicSystemInfo, User } from '../lib/types';
@@ -181,6 +182,11 @@
         {/if}
       </form>
     {/if}
+    {#if canDownloadSelf}
+      <a class="get" href={selfUrl} download={SELF_FILENAME}>
+        <Icon name="download" size={16} /> Download Marinefin — one HTML file you can open offline
+      </a>
+    {/if}
   </div>
 </div>
 
@@ -255,4 +261,17 @@
   }
   .qc { font-size: 13px; }
   .recents { margin: 4px 0 8px; }
+  .get {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 13px;
+    text-align: center;
+  }
+  .get:hover { color: var(--accent); }
 </style>
