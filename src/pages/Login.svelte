@@ -1,6 +1,6 @@
 <script lang="ts">
   import { api } from '../lib/api';
-  import { normalizeServer } from '../lib/format';
+  import { normalizeServer, serverCandidates } from '../lib/format';
   import { router } from '../lib/router.svelte';
   import { session } from '../lib/session.svelte';
   import type { PublicSystemInfo, User } from '../lib/types';
@@ -22,8 +22,19 @@
     error = '';
     busy = true;
     try {
-      const server = normalizeServer(url);
-      info = await api.publicInfo(server);
+      let server = '';
+      let firstError: unknown;
+      for (const candidate of serverCandidates(url)) {
+        try {
+          info = await api.publicInfo(candidate);
+          server = candidate;
+          break;
+        } catch (err) {
+          firstError ??= err;
+        }
+      }
+      if (!server || !info) throw firstError ?? new Error('Enter a server address.');
+      url = server;
       users = await api.publicUsers(server).catch(() => []);
       session.serverUrl = server;
       session.serverName = info.ServerName;
@@ -120,7 +131,7 @@
       <form onsubmit={connect}>
         <label class="field">
           <span>Server address</span>
-          <input bind:value={url} placeholder="https://jellyfin.example.com:8096" autocomplete="url" />
+          <input bind:value={url} placeholder="jellyfin.example.com:8096" autocomplete="url" />
         </label>
         {#if session.servers.length}
           <div class="chip-row recents">
