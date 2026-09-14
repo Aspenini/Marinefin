@@ -12,8 +12,13 @@
   // Only a new track URL reloads the element; volume and mute are read untracked so changing them doesn't restart the song.
   $effect(() => {
     const url = player.audioUrl;
-    if (!audio || !url) return;
+    if (!audio) return;
     const el = audio;
+    if (!url) {
+      // A new track is being resolved; stop the previous one meanwhile.
+      el.pause();
+      return;
+    }
     el.src = url;
     untrack(() => {
       el.volume = player.volume;
@@ -24,15 +29,30 @@
 
   function play(el: HTMLAudioElement) {
     el.play().catch((e: unknown) => {
-      // AbortError just means the source changed before playback began.
-      if ((e as Error)?.name === 'AbortError') return;
-      fail((e as Error)?.name === 'NotAllowedError' ? 'Press play to start' : undefined);
+      const name = (e as Error)?.name;
+      // AbortError means the source changed first; NotSupportedError is also reported via onerror.
+      if (name === 'AbortError' || name === 'NotSupportedError') return;
+      player.paused = true;
+      if (name === 'NotAllowedError') player.audioError = 'Press play to start';
     });
   }
 
-  function fail(message = "This track couldn't be played.") {
+  /** The media element only says "failed", so ask the server for the stream's status to explain why. */
+  async function fail() {
+    const url = player.audioUrl;
     player.paused = true;
-    player.audioError = message;
+    if (!url) return;
+    const status = await api.streamStatus(url);
+    if (url !== player.audioUrl) return;
+    player.audioError = streamErrorMessage(status);
+  }
+
+  function streamErrorMessage(status: number): string {
+    if (status === 401 || status === 403) return `Server refused the stream (${status}). Try signing out and back in.`;
+    if (status === 404) return 'Server could not find this track (404).';
+    if (status >= 500) return `Server failed to prepare this track (${status}). Check the Jellyfin log.`;
+    if (status >= 200 && status < 300) return "Your browser can't play this format. Try another music transcode format in Settings.";
+    return "Couldn't reach the stream.";
   }
 
   $effect(() => {

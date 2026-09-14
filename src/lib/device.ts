@@ -4,8 +4,10 @@ import {
   effectiveMusicBitrate,
   maxAudioChannels,
   type AudioChannelPref,
+  type AudioContainerPref,
   type PlayMethodPref,
   type VideoCodecPref,
+  type VideoContainerPref,
 } from './playback';
 import { APP, type AppSettings } from './types';
 
@@ -52,6 +54,8 @@ export interface DeviceProfileOptions {
   enableHdr?: boolean;
   burnSubtitles?: boolean;
   audioBitrate?: number;
+  audioContainer?: AudioContainerPref;
+  videoContainer?: VideoContainerPref;
 }
 
 export function profileFromSettings(settings: AppSettings, maxBitrate?: number): DeviceProfileOptions {
@@ -67,6 +71,8 @@ export function profileFromSettings(settings: AppSettings, maxBitrate?: number):
     enableHdr: settings.enableHdr,
     burnSubtitles: settings.burnSubtitles,
     audioBitrate: settings.audioBitrate,
+    audioContainer: settings.audioContainer,
+    videoContainer: settings.videoContainer,
   };
 }
 
@@ -95,7 +101,8 @@ export function browserDeviceProfile(opts: DeviceProfileOptions | number = {}) {
 
   const audioDirect: string[] = ['aac', 'mp3'];
   if (support.opus) audioDirect.push('opus');
-  if (support.flac) audioDirect.push('flac', 'alac');
+  // ALAC is left out: only Safari decodes it, so it gets transcoded.
+  if (support.flac) audioDirect.push('flac');
   if (support.ac3) audioDirect.push('ac3');
   if (support.eac3) audioDirect.push('eac3');
 
@@ -167,19 +174,56 @@ export function browserDeviceProfile(opts: DeviceProfileOptions | number = {}) {
         { Format: 'dvdsub', Method: 'Encode' },
       ];
 
-  const transcodingProfile: Record<string, unknown> = {
-    Container: 'mp4',
+  const hlsCommon = {
     Type: 'Video',
-    AudioCodec: transcodeAudio,
-    VideoCodec: transcodeVideo,
     Context: 'Streaming',
     Protocol: 'hls',
     MaxAudioChannels: String(Math.min(channels, 6)),
     MinSegments: '1',
     BreakOnNonKeyFrames: true,
+  };
+  const mp4Hls: Record<string, unknown> = {
+    ...hlsCommon,
+    Container: 'mp4',
+    AudioCodec: transcodeAudio,
+    VideoCodec: transcodeVideo,
     ManifestSubtitles: 'vtt',
   };
-  if (transcodingAudioBitrate) transcodingProfile.MaxAudioBitrate = String(transcodingAudioBitrate);
+  // Browsers only play H.264 with AAC/MP3 inside MPEG-TS segments.
+  const tsHls: Record<string, unknown> = { ...hlsCommon, Container: 'ts', AudioCodec: 'aac,mp3', VideoCodec: 'h264' };
+  if (transcodingAudioBitrate) {
+    mp4Hls.MaxAudioBitrate = String(transcodingAudioBitrate);
+    tsHls.MaxAudioBitrate = String(transcodingAudioBitrate);
+  }
+  // The server uses the first matching transcoding profile, so the preferred container goes first.
+  const videoTranscodes = options.videoContainer === 'ts' ? [tsHls, mp4Hls] : [mp4Hls, tsHls];
+
+  const audioDirectProfiles: Record<string, unknown>[] = [
+    { Container: 'mp3', Type: 'Audio', AudioCodec: 'mp3' },
+    { Container: 'aac,m4a,m4b,mp4', Type: 'Audio', AudioCodec: 'aac' },
+    { Container: 'wav', Type: 'Audio' },
+  ];
+  if (support.flac) audioDirectProfiles.push({ Container: 'flac', Type: 'Audio', AudioCodec: 'flac' });
+  if (support.opus) audioDirectProfiles.push({ Container: 'webm,webma,ogg,oga,opus', Type: 'Audio', AudioCodec: 'opus' });
+
+  // Preferred music format first (if this browser can play it), then MP3, which plays everywhere.
+  const audioFormatOk: Record<Exclude<AudioContainerPref, 'auto'>, boolean> = {
+    mp3: true,
+    aac: support.aac,
+    opus: support.opus,
+    flac: support.flac,
+  };
+  const preferredAudio = options.audioContainer && options.audioContainer !== 'auto' ? options.audioContainer : 'mp3';
+  const audioTranscodes = [...new Set([preferredAudio, 'mp3' as const])]
+    .filter((format) => audioFormatOk[format])
+    .map((format) => ({
+      Container: format,
+      Type: 'Audio',
+      AudioCodec: format,
+      Context: 'Streaming',
+      Protocol: 'http',
+      MaxAudioChannels: '2',
+    }));
 
   return {
     MaxStreamingBitrate: maxBitrate,
@@ -204,33 +248,9 @@ export function browserDeviceProfile(opts: DeviceProfileOptions | number = {}) {
         VideoCodec: ['vp8', vp9Ok ? 'vp9' : '', av1Ok ? 'av1' : ''].filter(Boolean).join(','),
         AudioCodec: 'vorbis,opus',
       },
-      {
-        Container: 'mp3,aac,m4a,flac,opus,wav,ogg,webma,oga,alac',
-        Type: 'Audio',
-      },
+      ...audioDirectProfiles,
     ],
-    TranscodingProfiles: [
-      transcodingProfile,
-      {
-        Container: 'ts',
-        Type: 'Video',
-        AudioCodec: 'aac,mp3',
-        VideoCodec: 'h264',
-        Context: 'Streaming',
-        Protocol: 'hls',
-        MaxAudioChannels: String(Math.min(channels, 6)),
-        MinSegments: '1',
-        BreakOnNonKeyFrames: true,
-      },
-      {
-        Container: 'mp3',
-        Type: 'Audio',
-        AudioCodec: 'mp3',
-        Context: 'Streaming',
-        Protocol: 'http',
-        MaxAudioChannels: '2',
-      },
-    ],
+    TranscodingProfiles: [...videoTranscodes, ...audioTranscodes],
     ContainerProfiles: [],
     CodecProfiles: codecProfiles,
     SubtitleProfiles: subtitleProfiles,

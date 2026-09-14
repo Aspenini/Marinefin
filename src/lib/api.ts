@@ -1,5 +1,5 @@
-import { authHeader, browserDeviceProfile, getDeviceId, type DeviceProfileOptions } from './device';
-import { effectiveMusicBitrate, maxAudioChannels, detectCodecSupport, ORIGINAL_BITRATE } from './playback';
+import { authHeader, browserDeviceProfile, type DeviceProfileOptions } from './device';
+import { maxAudioChannels, detectCodecSupport } from './playback';
 import { normalizeServer } from './format';
 import type {
   AuthResult,
@@ -47,6 +47,12 @@ function qs(params: Record<string, string | number | boolean | undefined | null>
   }
   const s = u.toString();
   return s ? `?${s}` : '';
+}
+
+/** Token for URLs the browser loads itself (media, images, subtitles). `ApiKey` is current; `api_key` keeps older servers working. */
+function tokenParams() {
+  const token = ctx.token ?? undefined;
+  return { ApiKey: token, api_key: token };
 }
 
 const CONNECT_TIMEOUT_MS = 5000;
@@ -360,7 +366,7 @@ export const api = {
     const params: Record<string, string | number | undefined> = {
       quality: opts.q ?? 90,
       tag,
-      api_key: ctx.token ?? undefined,
+      ...tokenParams(),
     };
     if (opts.w) params.fillWidth = opts.w;
     if (opts.h) params.fillHeight = opts.h;
@@ -370,19 +376,24 @@ export const api = {
 
   personImage(person: { Id: string; PrimaryImageTag?: string }, w = 200): string {
     if (!ctx.serverUrl || !person.Id) return '';
-    return `${ctx.serverUrl}/Items/${person.Id}/Images/Primary${qs({ fillWidth: w, quality: 85, tag: person.PrimaryImageTag, api_key: ctx.token ?? undefined })}`;
+    return `${ctx.serverUrl}/Items/${person.Id}/Images/Primary${qs({ fillWidth: w, quality: 85, tag: person.PrimaryImageTag, ...tokenParams() })}`;
   },
 
   userImage(user: User, w = 80): string {
     if (!ctx.serverUrl || !user.Id || !user.PrimaryImageTag) return '';
-    return `${ctx.serverUrl}/Users/${user.Id}/Images/Primary${qs({ fillWidth: w, quality: 85, tag: user.PrimaryImageTag, api_key: ctx.token ?? undefined })}`;
+    return `${ctx.serverUrl}/Users/${user.Id}/Images/Primary${qs({ fillWidth: w, quality: 85, tag: user.PrimaryImageTag, ...tokenParams() })}`;
   },
 
   subtitleUrl(itemId: string, mediaSourceId: string, index: number): string {
-    return `${ctx.serverUrl}/Videos/${itemId}/${mediaSourceId}/Subtitles/${index}/Stream.vtt${qs({ api_key: ctx.token ?? undefined })}`;
+    return `${ctx.serverUrl}/Videos/${itemId}/${mediaSourceId}/Subtitles/${index}/Stream.vtt${qs({ ...tokenParams() })}`;
   },
 
-  streamUrl(itemId: string, source: { Id: string; TranscodingUrl?: string; SupportsDirectPlay?: boolean; SupportsDirectStream?: boolean }, playSessionId: string): { url: string; method: 'DirectPlay' | 'DirectStream' | 'Transcode'; hls: boolean } {
+  streamUrl(
+    itemId: string,
+    source: { Id: string; TranscodingUrl?: string; SupportsDirectPlay?: boolean; SupportsDirectStream?: boolean },
+    playSessionId: string,
+    kind: 'Videos' | 'Audio' = 'Videos',
+  ): { url: string; method: 'DirectPlay' | 'DirectStream' | 'Transcode'; hls: boolean } {
     if (source.TranscodingUrl) {
       const url = source.TranscodingUrl.startsWith('http')
         ? source.TranscodingUrl
@@ -391,42 +402,37 @@ export const api = {
     }
     if (source.SupportsDirectPlay || source.SupportsDirectStream) {
       return {
-        url: `${ctx.serverUrl}/Videos/${itemId}/stream${qs({
+        url: `${ctx.serverUrl}/${kind}/${itemId}/stream${qs({
           static: true,
           mediaSourceId: source.Id,
           playSessionId,
-          api_key: ctx.token ?? undefined,
+          ...tokenParams(),
         })}`,
         method: source.SupportsDirectPlay ? 'DirectPlay' : 'DirectStream',
         hls: false,
       };
     }
+    if (kind === 'Audio') throw new Error('The server offered no stream this browser can play.');
     return {
       url: `${ctx.serverUrl}/Videos/${itemId}/master.m3u8${qs({
         MediaSourceId: source.Id,
         PlaySessionId: playSessionId,
-        api_key: ctx.token ?? undefined,
+        ...tokenParams(),
       })}`,
       method: 'Transcode',
       hls: true,
     };
   },
 
-  audioUrl(itemId: string, startTicks = 0, maxBitrate?: number): string {
-    return `${ctx.serverUrl}/Audio/${itemId}/universal${qs({
-      UserId: ctx.userId,
-      DeviceId: getDeviceId(),
-      // Auto means no cap: the original file direct plays whenever the browser can decode it.
-      MaxStreamingBitrate: maxBitrate && maxBitrate > 0 ? maxBitrate : ORIGINAL_BITRATE,
-      Container: 'opus,webm|opus,mp3,aac,m4a|aac,m4b|aac,flac,webma,webm|webma,wav,ogg',
-      TranscodingContainer: 'mp3',
-      TranscodingProtocol: 'http',
-      AudioCodec: 'mp3',
-      AudioBitRate: effectiveMusicBitrate(maxBitrate),
-      StartTimeTicks: startTicks,
-      EnableRedirection: true,
-      api_key: ctx.token ?? undefined,
-    })}`;
+  /** HTTP status of a media URL (0 if unreachable), used to explain why the browser couldn't play it. */
+  async streamStatus(url: string): Promise<number> {
+    try {
+      const res = await fetch(url, { headers: { Range: 'bytes=0-0' } });
+      void res.body?.cancel();
+      return res.status;
+    } catch {
+      return 0;
+    }
   },
 };
 

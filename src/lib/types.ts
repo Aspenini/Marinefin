@@ -252,6 +252,8 @@ export type CollectionType =
 export type VideoCodecPref = 'auto' | 'h264' | 'hevc' | 'av1';
 export type PlayMethodPref = 'auto' | 'direct' | 'transcode';
 export type AudioChannelPref = 'auto' | 'stereo' | 'surround';
+export type AudioContainerPref = 'auto' | 'mp3' | 'aac' | 'opus' | 'flac';
+export type VideoContainerPref = 'auto' | 'mp4' | 'ts';
 export type SubtitleMode = 'default' | 'always' | 'forced' | 'none';
 
 export interface AppSettings {
@@ -267,14 +269,18 @@ export interface AppSettings {
   /** 0 = original. Max encoded height in pixels. */
   maxResolution: number;
   videoCodec: VideoCodecPref;
+  /** HLS segment container used when transcoding video. */
+  videoContainer: VideoContainerPref;
   playMethod: PlayMethodPref;
   enableHevc: boolean;
   enableAv1: boolean;
   enableHdr: boolean;
   /** 0 = auto. Used when transcoding audio. */
   audioBitrate: number;
-  /** 0 = auto (320 kbps). Music streaming cap. */
+  /** 0 = original (transcodes at 320 kbps). Music streaming cap. */
   musicBitrate: number;
+  /** Format music is converted to when it can't direct play. */
+  audioContainer: AudioContainerPref;
   audioChannels: AudioChannelPref;
   audioLanguage: string;
   subtitleLanguage: string;
@@ -295,12 +301,14 @@ export const DEFAULT_SETTINGS: AppSettings = {
   maxStreamingBitrate: 0,
   maxResolution: 0,
   videoCodec: 'auto',
+  videoContainer: 'auto',
   playMethod: 'auto',
   enableHevc: true,
   enableAv1: true,
   enableHdr: true,
   audioBitrate: 0,
   musicBitrate: 0,
+  audioContainer: 'auto',
   audioChannels: 'auto',
   audioLanguage: '',
   subtitleLanguage: '',

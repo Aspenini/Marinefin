@@ -1,6 +1,8 @@
 export type VideoCodecPref = 'auto' | 'h264' | 'hevc' | 'av1';
 export type PlayMethodPref = 'auto' | 'direct' | 'transcode';
 export type AudioChannelPref = 'auto' | 'stereo' | 'surround';
+export type AudioContainerPref = 'auto' | 'mp3' | 'aac' | 'opus' | 'flac';
+export type VideoContainerPref = 'auto' | 'mp4' | 'ts';
 export type SubtitleMode = 'default' | 'always' | 'forced' | 'none';
 
 export interface BitrateOption {

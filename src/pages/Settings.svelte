@@ -7,7 +7,15 @@
     PLAYBACK_RATES,
     VIDEO_BITRATES,
   } from '../lib/playback';
-  import { APP, type AudioChannelPref, type PlayMethodPref, type SubtitleMode, type VideoCodecPref } from '../lib/types';
+  import {
+    APP,
+    type AudioChannelPref,
+    type AudioContainerPref,
+    type PlayMethodPref,
+    type SubtitleMode,
+    type VideoCodecPref,
+    type VideoContainerPref,
+  } from '../lib/types';
   import { router } from '../lib/router.svelte';
   import { canDownloadSelf, SELF_FILENAME, selfUrl } from '../lib/selfDownload';
   import { session } from '../lib/session.svelte';
@@ -124,6 +132,20 @@
         <option value="av1">AV1</option>
       </select>
     </label>
+    <label class="row">
+      <span>
+        Transcode container
+        <small>HLS segment format when video is converted</small>
+      </span>
+      <select
+        value={session.settings.videoContainer}
+        onchange={(e) => session.updateSettings({ videoContainer: str(e) as VideoContainerPref })}
+      >
+        <option value="auto">Auto (fMP4)</option>
+        <option value="mp4">fMP4 (HLS)</option>
+        <option value="ts">MPEG-TS (HLS, H.264 only)</option>
+      </select>
+    </label>
     <label class="check">
       <input
         type="checkbox"
@@ -178,6 +200,22 @@
         {#each MUSIC_BITRATES as q}
           <option value={String(q.value)}>{q.label}</option>
         {/each}
+      </select>
+    </label>
+    <label class="row">
+      <span>
+        Music transcode format
+        <small>Used only when a track can't play as-is</small>
+      </span>
+      <select
+        value={session.settings.audioContainer}
+        onchange={(e) => session.updateSettings({ audioContainer: str(e) as AudioContainerPref })}
+      >
+        <option value="auto">Auto (MP3)</option>
+        <option value="mp3">MP3</option>
+        <option value="aac">AAC</option>
+        <option value="opus">Opus</option>
+        <option value="flac">FLAC (lossless)</option>
       </select>
     </label>
     <label class="row">

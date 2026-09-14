@@ -3,6 +3,7 @@ import { profileFromSettings } from './device';
 import { isAudioItem, secondsToTicks, ticksToSeconds } from './format';
 import {
   effectiveBitrate,
+  ORIGINAL_BITRATE,
   pickAudioIndex,
   pickSubtitleIndex,
 } from './playback';
@@ -30,6 +31,12 @@ class MediaPlayer {
   queueIndex = $state(0);
   audioUrl = $state('');
   audioError = $state('');
+  private audioLoad = 0;
+  private audioStream: { method: PlaySession['method']; playSessionId: string; mediaSourceId: string } = {
+    method: 'DirectPlay',
+    playSessionId: '',
+    mediaSourceId: '',
+  };
   paused = $state(true);
   currentTime = $state(0);
   duration = $state(0);
@@ -113,12 +120,35 @@ class MediaPlayer {
     await this.loadAudio(list[this.queueIndex]!);
   }
 
+  /** Asks the server how to stream the track (like video), so it picks direct play or a transcode the browser supports. */
   async loadAudio(item: BaseItem) {
+    const load = ++this.audioLoad;
     this.audioItem = item;
     this.audioError = '';
-    this.audioUrl = api.audioUrl(item.Id, item.UserData?.PlaybackPositionTicks ?? 0, session.settings.musicBitrate);
-    this.paused = false;
-    this.reportAudio('start');
+    this.audioUrl = '';
+    try {
+      const settings = session.settings;
+      const maxBitrate = settings.musicBitrate > 0 ? settings.musicBitrate : ORIGINAL_BITRATE;
+      const info = await api.playbackInfo(item.Id, {
+        maxBitrate,
+        startTimeTicks: item.UserData?.PlaybackPositionTicks ?? 0,
+        enableDirectPlay: settings.playMethod !== 'transcode',
+        enableDirectStream: settings.playMethod !== 'transcode',
+        profile: profileFromSettings(settings, maxBitrate),
+      });
+      if (load !== this.audioLoad) return;
+      const source = info.MediaSources?.[0];
+      if (!source) throw new Error('No playable media source.');
+      const stream = api.streamUrl(item.Id, source, info.PlaySessionId, 'Audio');
+      this.audioStream = { method: stream.method, playSessionId: info.PlaySessionId, mediaSourceId: source.Id };
+      this.audioUrl = stream.url;
+      this.paused = false;
+      this.reportAudio('start');
+    } catch (e) {
+      if (load !== this.audioLoad) return;
+      this.audioError = e instanceof Error ? e.message : "This track couldn't be played.";
+      this.paused = true;
+    }
   }
 
   nextAudio() {
@@ -170,7 +200,9 @@ class MediaPlayer {
       ItemId: item.Id,
       PositionTicks: secondsToTicks(this.currentTime),
       IsPaused: this.paused,
-      PlayMethod: 'DirectPlay',
+      PlayMethod: this.audioStream.method,
+      PlaySessionId: this.audioStream.playSessionId || undefined,
+      MediaSourceId: this.audioStream.mediaSourceId || undefined,
       CanSeek: true,
     };
     const fn = kind === 'start' ? api.playing : kind === 'stop' ? api.stopped : api.progress;
