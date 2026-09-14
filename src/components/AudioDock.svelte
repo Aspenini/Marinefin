@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { api } from '../lib/api';
   import { formatClock, itemSubtitle } from '../lib/format';
   import { player } from '../lib/player.svelte';
@@ -8,14 +9,31 @@
   let audio: HTMLAudioElement | undefined = $state();
   let lastReport = 0;
 
+  // Only a new track URL reloads the element; volume and mute are read untracked so changing them doesn't restart the song.
   $effect(() => {
-    if (audio && player.audioUrl) {
-      audio.src = player.audioUrl;
-      audio.volume = player.volume;
-      audio.muted = player.muted;
-      void audio.play().catch(() => undefined);
-    }
+    const url = player.audioUrl;
+    if (!audio || !url) return;
+    const el = audio;
+    el.src = url;
+    untrack(() => {
+      el.volume = player.volume;
+      el.muted = player.muted;
+    });
+    play(el);
   });
+
+  function play(el: HTMLAudioElement) {
+    el.play().catch((e: unknown) => {
+      // AbortError just means the source changed before playback began.
+      if ((e as Error)?.name === 'AbortError') return;
+      fail((e as Error)?.name === 'NotAllowedError' ? 'Press play to start' : undefined);
+    });
+  }
+
+  function fail(message = "This track couldn't be played.") {
+    player.paused = true;
+    player.audioError = message;
+  }
 
   $effect(() => {
     if (audio) audio.volume = player.volume;
@@ -33,7 +51,7 @@
 
   function toggle() {
     if (!audio) return;
-    if (audio.paused) void audio.play();
+    if (audio.paused) play(audio);
     else audio.pause();
     player.paused = audio.paused;
     player.reportAudio('progress');
@@ -53,8 +71,12 @@
     <audio
       bind:this={audio}
       ontimeupdate={onTime}
-      onplay={() => (player.paused = false)}
+      onplay={() => {
+        player.paused = false;
+        player.audioError = '';
+      }}
       onpause={() => (player.paused = true)}
+      onerror={() => fail()}
       onended={() => player.nextAudio()}
     ></audio>
 
@@ -62,7 +84,7 @@
       {#if art}<img src={art} alt="" />{:else}<div class="ph"></div>{/if}
       <div>
         <strong>{player.audioItem.Name}</strong>
-        <small>{itemSubtitle(player.audioItem)}</small>
+        <small class:err={player.audioError}>{player.audioError || itemSubtitle(player.audioItem)}</small>
       </div>
     </button>
 
@@ -160,6 +182,7 @@
     text-overflow: ellipsis;
   }
   .now small, .qitem small { color: var(--muted); font-size: 12px; }
+  .now small.err { color: var(--danger); }
   .ctrls { display: flex; flex-direction: column; align-items: center; gap: 4px; }
   .btns { display: flex; align-items: center; gap: 8px; }
   .time {

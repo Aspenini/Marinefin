@@ -1,5 +1,5 @@
 import { authHeader, browserDeviceProfile, getDeviceId, type DeviceProfileOptions } from './device';
-import { effectiveMusicBitrate, maxAudioChannels, detectCodecSupport } from './playback';
+import { effectiveMusicBitrate, maxAudioChannels, detectCodecSupport, ORIGINAL_BITRATE } from './playback';
 import { normalizeServer } from './format';
 import type {
   AuthResult,
@@ -416,11 +416,13 @@ export const api = {
     return `${ctx.serverUrl}/Audio/${itemId}/universal${qs({
       UserId: ctx.userId,
       DeviceId: getDeviceId(),
-      MaxStreamingBitrate: effectiveMusicBitrate(maxBitrate),
-      Container: 'opus,webm|opus,mp3,aac,m4a|aac,m4a|alac,m4b|aac,flac,webma,webm|webma,wav,ogg',
+      // Auto means no cap: the original file direct plays whenever the browser can decode it.
+      MaxStreamingBitrate: maxBitrate && maxBitrate > 0 ? maxBitrate : ORIGINAL_BITRATE,
+      Container: 'opus,webm|opus,mp3,aac,m4a|aac,m4b|aac,flac,webma,webm|webma,wav,ogg',
       TranscodingContainer: 'mp3',
       TranscodingProtocol: 'http',
-      AudioCodec: 'aac',
+      AudioCodec: 'mp3',
+      AudioBitRate: effectiveMusicBitrate(maxBitrate),
       StartTimeTicks: startTicks,
       EnableRedirection: true,
       api_key: ctx.token ?? undefined,

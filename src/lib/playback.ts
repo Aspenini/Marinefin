@@ -41,7 +41,7 @@ export const AUDIO_BITRATES: BitrateOption[] = [
 ];
 
 export const MUSIC_BITRATES: BitrateOption[] = [
-  { label: 'Auto (320 kbps)', value: 0 },
+  { label: 'Auto (original, 320 kbps if converted)', value: 0 },
   { label: '320 kbps', value: 320_000 },
   { label: '256 kbps', value: 256_000 },
   { label: '192 kbps', value: 192_000 },

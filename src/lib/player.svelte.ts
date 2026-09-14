@@ -3,7 +3,6 @@ import { profileFromSettings } from './device';
 import { isAudioItem, secondsToTicks, ticksToSeconds } from './format';
 import {
   effectiveBitrate,
-  effectiveMusicBitrate,
   pickAudioIndex,
   pickSubtitleIndex,
 } from './playback';
@@ -30,6 +29,7 @@ class MediaPlayer {
   queue = $state<BaseItem[]>([]);
   queueIndex = $state(0);
   audioUrl = $state('');
+  audioError = $state('');
   paused = $state(true);
   currentTime = $state(0);
   duration = $state(0);
@@ -115,11 +115,8 @@ class MediaPlayer {
 
   async loadAudio(item: BaseItem) {
     this.audioItem = item;
-    this.audioUrl = api.audioUrl(
-      item.Id,
-      item.UserData?.PlaybackPositionTicks ?? 0,
-      effectiveMusicBitrate(session.settings.musicBitrate),
-    );
+    this.audioError = '';
+    this.audioUrl = api.audioUrl(item.Id, item.UserData?.PlaybackPositionTicks ?? 0, session.settings.musicBitrate);
     this.paused = false;
     this.reportAudio('start');
   }
@@ -146,6 +143,7 @@ class MediaPlayer {
     if (report && this.audioItem) this.reportAudio('stop');
     this.audioItem = null;
     this.audioUrl = '';
+    this.audioError = '';
     this.paused = true;
   }
 
