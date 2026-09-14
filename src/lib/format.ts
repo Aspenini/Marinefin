@@ -110,19 +110,42 @@ export function plural(n: number, word: string): string {
   return `${n} ${word}${n === 1 ? '' : 's'}`;
 }
 
+/** Adds a scheme if missing and drops anything pasted from the Jellyfin web UI (`/web/#/home`, query, hash). */
 export function normalizeServer(input: string): string {
   let url = input.trim();
   if (!url) return '';
   if (!/^https?:\/\//i.test(url)) url = `http://${url}`;
-  return url.replace(/\/+$/, '');
+  const [, origin, path = ''] = url.match(/^(https?:\/\/[^/?#]+)(.*)$/i) ?? [, url];
+  const base = path
+    .replace(/[?#].*$/, '')
+    .replace(/\/index\.html$/i, '')
+    .replace(/\/web(\/.*)?$/i, '')
+    .replace(/\/+$/, '');
+  return `${origin}${base}`;
 }
 
-/** Addresses to try for user input: as-is if it has a scheme, otherwise https first, then http. */
-export function serverCandidates(input: string): string[] {
-  const url = input.trim();
-  if (!url) return [];
-  if (/^https?:\/\//i.test(url)) return [normalizeServer(url)];
-  return [normalizeServer(`https://${url}`), normalizeServer(`http://${url}`)];
+const DEFAULT_PORTS = [
+  ['http', 8096],
+  ['https', 8920],
+] as const;
+
+/**
+ * Addresses to try for user input, most likely first. Without a scheme, https is tried before http
+ * (http is skipped on secure pages, where browsers block it). Without a port, Jellyfin's defaults follow.
+ */
+export function serverCandidates(input: string, secureOnly = false): string[] {
+  const raw = input.trim();
+  if (!raw) return [];
+  const explicit = raw.match(/^(https?):\/\//i)?.[1].toLowerCase();
+  const [, authority, path] = normalizeServer(raw).match(/^https?:\/\/([^/]+)(.*)$/i)!;
+  const schemes = explicit ? [explicit] : secureOnly ? ['https'] : ['https', 'http'];
+  const out = schemes.map((s) => `${s}://${authority}${path}`);
+  if (!/:\d+$/.test(authority)) {
+    for (const [scheme, port] of DEFAULT_PORTS) {
+      if (schemes.includes(scheme)) out.push(`${scheme}://${authority}:${port}${path}`);
+    }
+  }
+  return out;
 }
 
 export function isPlayable(item: { Type?: string; MediaType?: string; IsFolder?: boolean }): boolean {

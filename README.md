@@ -38,6 +38,8 @@ The entire client — JS, CSS, and fonts — lands at `dist/index.html`. Host th
 
 - `bun run preview` — local static server
 - Drop it on GitHub Pages, Cloudflare Pages, Nginx, Caddy, or a NAS share
+
+Browsers block HTTPS pages from talking to `http://` servers, so when Marinefin is hosted over HTTPS (GitHub Pages included) your Jellyfin server needs an `https://` address too.
 - Serve it from the Jellyfin server itself
 
 Then open it over HTTP(S), enter your server URL, and sign in.

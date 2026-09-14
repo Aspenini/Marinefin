@@ -24,7 +24,7 @@
     try {
       let server = '';
       let firstError: unknown;
-      for (const candidate of serverCandidates(url)) {
+      for (const candidate of serverCandidates(url, location.protocol === 'https:')) {
         try {
           info = await api.publicInfo(candidate);
           server = candidate;

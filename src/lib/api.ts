@@ -49,6 +49,19 @@ function qs(params: Record<string, string | number | boolean | undefined | null>
   return s ? `?${s}` : '';
 }
 
+const CONNECT_TIMEOUT_MS = 5000;
+
+function networkErrorMessage(err: unknown, server: string): string {
+  if ((err as Error)?.name === 'TimeoutError') return 'The server took too long to respond.';
+  if (location.protocol === 'file:') {
+    return 'Could not reach the server. Serve Marinefin over HTTP(S) — not as a local file.';
+  }
+  if (location.protocol === 'https:' && /^http:\/\//i.test(server)) {
+    return 'This page is served over HTTPS, so the browser blocks http:// servers. Use an https:// address for your server.';
+  }
+  return 'Could not reach the server. Check the address, and that the server allows requests from this site (CORS).';
+}
+
 async function request<T>(
   path: string,
   init: RequestInit = {},
@@ -62,11 +75,8 @@ async function request<T>(
   let res: Response;
   try {
     res = await fetch(`${server}${path}`, { ...init, headers });
-  } catch {
-    throw new ApiError(
-      'Could not reach the server. Serve Marinefin over HTTP(S) — not as a local file — and confirm the URL and CORS settings.',
-      0,
-    );
+  } catch (err) {
+    throw new ApiError(networkErrorMessage(err, server), 0);
   }
   if (!res.ok) {
     let message = `Request failed (${res.status})`;
@@ -82,12 +92,31 @@ async function request<T>(
   if (res.status === 204) return undefined as T;
   const text = await res.text();
   if (!text) return undefined as T;
-  return JSON.parse(text) as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new ApiError('The server sent a response Marinefin could not read.', res.status);
+  }
 }
 
 export const api = {
-  publicInfo(server: string) {
-    return request<PublicSystemInfo>(`/System/Info/Public`, {}, normalizeServer(server), null);
+  async publicInfo(server: string) {
+    const notJellyfin = (status: number) =>
+      new ApiError("That address responded, but it doesn't look like a Jellyfin server.", status);
+    let info: PublicSystemInfo | undefined;
+    try {
+      info = await request<PublicSystemInfo>(
+        `/System/Info/Public`,
+        { signal: AbortSignal.timeout(CONNECT_TIMEOUT_MS) },
+        normalizeServer(server),
+        null,
+      );
+    } catch (err) {
+      if (err instanceof ApiError && err.status !== 0) throw notJellyfin(err.status);
+      throw err;
+    }
+    if (!info?.Id || !info.Version) throw notJellyfin(200);
+    return info;
   },
 
   publicUsers(server: string) {
